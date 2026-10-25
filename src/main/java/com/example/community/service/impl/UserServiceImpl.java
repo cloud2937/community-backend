@@ -1,10 +1,13 @@
 package com.example.community.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.community.datatransferobject.LoginRequest;
+import com.example.community.datatransferobject.LoginResponse;
 import com.example.community.datatransferobject.RegisterRequest;
 import com.example.community.entity.User;
 import com.example.community.mapper.UserMapper;
 import com.example.community.service.UserService;
+import com.example.community.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -15,6 +18,7 @@ import org.springframework.stereotype.Service;
 public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
+    private final JwtUtil jwtUtil;
     private final BCryptPasswordEncoder passwordEncoder;
 
     @Override
@@ -38,5 +42,33 @@ public class UserServiceImpl implements UserService {
         user.setFollowCount(0);
 
         userMapper.insert(user);
+    }
+
+    @Override
+    public LoginResponse login(LoginRequest request) {
+
+        User user=userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername,request.getUsername()));
+
+        if(user==null) {
+            throw new IllegalArgumentException("用户名或密码错误!");
+        }
+
+        if(user.getStatus()!=null && user.getStatus()==0) {
+            throw new IllegalArgumentException("该账号已被封禁");
+        }
+
+        if(!passwordEncoder.matches(request.getPassword(),user.getPassword())) {
+            throw new IllegalArgumentException("用户名或密码错误");
+        }
+
+        String token=jwtUtil.generateToken(user.getId(),user.getUsername());
+
+        return new LoginResponse(
+                token,
+                user.getId(),
+                user.getUsername(),
+                user.getAvatar()
+        );
+
     }
 }
